@@ -19,7 +19,7 @@ def get_credentials():
     """Gets the credentials for the Google Calendar API."""
 
     # Path to your client secrets file
-    client_secrets_file = '/Users/johanneswilhelm/Documents/timeslotfinder/client_secret.json'
+    client_secrets_file = 'client_secret.json'
 
     # List of scopes your application is requesting access to
     scopes = ['https://www.googleapis.com/auth/calendar.readonly']

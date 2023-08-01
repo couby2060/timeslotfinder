@@ -32,8 +32,8 @@ def get_calendars(service, email):
 
 def get_freebusy_info(service, emails, start_date, end_date):
     # Convert the start and end dates to datetime objects and set the time
-    start_date = datetime.strptime(start_date, "%d.%m.%Y")
-    end_date = datetime.strptime(end_date, "%d.%m.%Y")
+    #start_date = datetime.strptime(start_date, "%d.%m.%Y")
+    #end_date = datetime.strptime(end_date, "%d.%m.%Y")
 
     if start_date.date() == datetime.today().date():
         # If the start date is today, set the start time to the current time
@@ -54,10 +54,11 @@ def get_freebusy_info(service, emails, start_date, end_date):
     events_result = service.freebusy().query(body=body).execute()
     calendars = events_result[u'calendars']
 
-    for email, calendar in calendars.items():
-        for slot in calendar['busy']:
-            slot['start'] = convert_to_local_time(parse(slot['start']))
-            slot['end'] = convert_to_local_time(parse(slot['end']))
+# Note: Here, we need to convert the time to the local timezone if needed
+#    for email, calendar in calendars.items():
+#        for slot in calendar['busy']:
+#            slot['start'] = convert_to_local_time(parse(slot['start']))
+#            slot['end'] = convert_to_local_time(parse(slot['end']))
 
     return calendars
 

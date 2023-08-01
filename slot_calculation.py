@@ -1,50 +1,48 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from calendar_api import create_service, get_freebusy_info
+from config import load_config
 
-def calculate_free_slots(emails, start_date, end_date, duration, config):
-    busy_times = {}
-    for email in emails:
-        busy_info = get_busy_info(email, start_date, end_date)
-        busy_times[email] = busy_info['busy']
+def calculate_free_slots(emails, start_date, end_date, duration, credentials):
+    print("In calculate_free_slots...")
+    service = create_service(credentials)
+    freebusy_info = get_freebusy_info(service, emails, start_date, end_date)
+    
+    print(f"Freebusy info: {freebusy_info}")
 
-    all_slots = generate_all_slots(start_date, end_date, duration, busy_times, config)
-    free_slots = remove_busy_slots(all_slots, busy_times)
+    config = load_config()
+    weekdays = [datetime.strptime(day, "%A").weekday() for day in config["working_days"]]
+    working_hours = config["working_hours"]
 
-    return free_slots
-
-def generate_all_slots(start_date, end_date, duration, busy_times, config):
-    all_slots = []
-    time_interval = timedelta(minutes=duration)
-    working_days = config['working_days']
-    current_time = start_date
-    end_time = end_date
-
-    # Get the timezone from the busy times
-    first_busy_time = next((value for value in busy_times.values() if value), [])
-    tzinfo = first_busy_time[0]['start'].tzinfo if first_busy_time else None
-
-    while current_time < end_time:
-        if current_time.weekday() in working_days:
-            working_hours_start = current_time.replace(hour=config['working_hours_start'], minute=0, second=0, microsecond=0, tzinfo=tzinfo)
-            working_hours_end = current_time.replace(hour=config['working_hours_end'], minute=0, second=0, microsecond=0, tzinfo=tzinfo)
-            if working_hours_start <= current_time < working_hours_end:
-                all_slots.append(current_time)
-        current_time += time_interval
-
-    return all_slots
-
-def remove_busy_slots(all_slots, busy_times):
     free_slots = []
-    busy_intervals = [item for sublist in busy_times.values() for item in sublist]
+    current_date = start_date
 
-    for slot in all_slots:
-        for busy_interval in busy_intervals:
-            if slot >= busy_interval['start'] and slot < busy_interval['end']:
-                break
-        else:
-            free_slots.append(slot)
+    while current_date <= end_date:
+        if current_date.weekday() in weekdays:
+            working_start_time = datetime.combine(current_date, datetime.strptime(working_hours["start"], "%H:%M").time())
+            working_end_time = datetime.combine(current_date, datetime.strptime(working_hours["end"], "%H:%M").time())
+            busy_slots = []
 
+            for email in emails:
+                busy_slots += freebusy_info[email]['busy']
+
+            busy_slots.sort(key=lambda x: x['start'])
+            current_time = working_start_time
+
+            for busy_slot in busy_slots:
+                busy_start = datetime.fromisoformat(busy_slot['start'])
+                busy_end = datetime.fromisoformat(busy_slot['end'])
+
+                if busy_start > current_time:
+                    free_slot_duration = busy_start - current_time
+                    if free_slot_duration.total_seconds() >= duration * 60:
+                        free_slots.append((current_time, busy_start))
+
+                current_time = max(current_time, busy_end)
+
+            if current_time < working_end_time:
+                free_slots.append((current_time, working_end_time))
+
+        current_date += timedelta(days=1)
+
+    print(f"Free slots: {free_slots}")
     return free_slots
-
-def get_busy_info(email, start_date, end_date):
-    # Mocked function: Replace with actual logic to fetch busy info from the calendar
-    return {'busy': []}
