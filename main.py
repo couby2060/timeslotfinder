@@ -1,5 +1,7 @@
 from slot_calculation import calculate_free_slots
 from ui import gather_info
+from config import load_config
+
 
 def group_consecutive_slots(slots):
     if not slots:
@@ -23,8 +25,8 @@ def main():
 
     try:
         emails, start_date, end_date, duration = gather_info()
-
-        free_slots = calculate_free_slots(emails, start_date, end_date, duration)
+        config = load_config()  # Load the config data
+        free_slots = calculate_free_slots(emails, start_date, end_date, duration, config)  # Pass config to the function
         grouped_slots = group_consecutive_slots(free_slots)
 
         if not free_slots:
