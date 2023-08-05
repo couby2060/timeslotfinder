@@ -1,4 +1,3 @@
-#test comment
 from datetime import datetime, timedelta
 
 def calculate_free_slots(emails, start_date, end_date, duration, config):
