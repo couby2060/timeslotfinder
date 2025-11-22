@@ -203,9 +203,18 @@ def find(
     start: Annotated[Optional[str], typer.Option("--start", help="Start date (YYYY-MM-DD)")] = None,
     end: Annotated[Optional[str], typer.Option("--end", help="End date (YYYY-MM-DD)")] = None,
     duration: Annotated[Optional[int], typer.Option("--duration", "-d", help="Meeting duration in minutes")] = None,
-    mock: Annotated[bool, typer.Option("--mock", help="Mock-Daten nutzen und Authentifizierung überspringen.")] = False,
-    this_week: Annotated[bool, typer.Option("--this-week", help="Suche von jetzt bis Ende der aktuellen Woche.")] = False,
-    next_week: Annotated[bool, typer.Option("--next-week", help="Suche in der kommenden Woche (Montag–Sonntag).")] = False,
+    mock: Annotated[
+        bool,
+        typer.Option(is_flag=True, help="Mock-Daten nutzen und Authentifizierung überspringen."),
+    ] = False,
+    this_week: Annotated[
+        bool,
+        typer.Option(is_flag=True, help="Suche von jetzt bis Ende der aktuellen Woche."),
+    ] = False,
+    next_week: Annotated[
+        bool,
+        typer.Option(is_flag=True, help="Suche in der kommenden Woche (Montag–Sonntag)."),
+    ] = False,
 ):
     """
     Find available meeting slots - Supports Interactive and Batch mode.
@@ -230,6 +239,9 @@ def find(
         timeslotfinder find --mock
         timeslotfinder find ich max --mock --next-week
     """
+
+    # TODO: Remove after debugging
+    console.print(f"[dim]Debug: this_week={this_week}, next_week={next_week}, mock={mock}[/dim]")
 
     async def _run_find() -> None:
         # Load configuration
