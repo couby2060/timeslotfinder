@@ -98,15 +98,9 @@ class MockGraphClient:
                     event_start = pendulum.parse(event["start"], tz=timezone)
                     event_end = pendulum.parse(event["end"], tz=timezone)
                     
-                    # Apply date shift
-                    shifted_start = event_start.add(
-                        days=date_shift_delta.days,
-                        seconds=date_shift_delta.seconds
-                    )
-                    shifted_end = event_end.add(
-                        days=date_shift_delta.days,
-                        seconds=date_shift_delta.seconds
-                    )
+                    # Apply full date shift delta (supports year/month differences)
+                    shifted_start = event_start + date_shift_delta
+                    shifted_end = event_end + date_shift_delta
                     
                     # Check if shifted event overlaps with requested time window
                     if shifted_start < end_time and shifted_end > start_time:

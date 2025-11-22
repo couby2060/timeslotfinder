@@ -4,7 +4,6 @@ Main CLI application using Typer.
 
 from pathlib import Path
 from typing import List, Optional, Annotated
-from datetime import datetime
 
 import pendulum
 import typer
@@ -17,7 +16,7 @@ from ..domain.models import WorkingHours
 from ..domain.slot_calculator import SlotCalculator
 from ..adapters.graph_authenticator import GraphAuthenticator
 from ..adapters.graph_client import GraphClient
-from ..adapters.mock_graph_client import MockGraphClient, MockGraphAuthenticator
+from ..adapters.mock_graph_client import MockGraphClient
 
 app = typer.Typer(
     name="timeslotfinder",
@@ -127,16 +126,64 @@ def _run_interactive_wizard(config: AppConfig, console: Console, skip_dates: boo
     }
 
 
+def _determine_time_range(
+    *,
+    console: Console,
+    tz: str,
+    this_week: bool,
+    next_week: bool,
+    start_option: Optional[str],
+    end_option: Optional[str]
+):
+    """
+    Resolve the desired time window based on shortcut flags or explicit dates.
+    Returns (start_date, end_date, time_preset_flag).
+    """
+    if this_week and next_week:
+        console.print("[red]Fehler: --this-week und --next-week können nicht gleichzeitig verwendet werden.[/red]")
+        raise typer.Exit(1)
+
+    now = pendulum.now(tz)
+
+    if this_week:
+        return now, now.end_of("week"), True
+
+    if next_week:
+        next_monday = now.next(pendulum.MONDAY).start_of("day")
+        end_of_week = next_monday.add(days=6).end_of("day")
+        return next_monday, end_of_week, True
+
+    if start_option:
+        try:
+            start_date = pendulum.from_format(start_option, "YYYY-MM-DD", tz=tz).start_of("day")
+        except Exception as e:
+            console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
+            raise typer.Exit(1)
+    else:
+        start_date = now.start_of("day")
+
+    if end_option:
+        try:
+            end_date = pendulum.from_format(end_option, "YYYY-MM-DD", tz=tz).end_of("day")
+        except Exception as e:
+            console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
+            raise typer.Exit(1)
+    else:
+        end_date = start_date.add(days=7).end_of("day")
+
+    return start_date, end_date, False
+
+
 @app.command()
 def find(
-    participants: Annotated[List[str], typer.Argument(help="Participant names (e.g., 'ich max'). If omitted, interactive mode starts.")] = [],
+    participants: Annotated[Optional[List[str]], typer.Argument(help="Teilnehmernamen (z. B. 'ich max'). Ohne Eingabe startet der Assistent.")] = None,
     config_file: Annotated[Optional[Path], typer.Option("--config", "-c", help="Path to config file. Defaults to ./config.yaml")] = None,
     start: Annotated[Optional[str], typer.Option("--start", help="Start date (YYYY-MM-DD)")] = None,
     end: Annotated[Optional[str], typer.Option("--end", help="End date (YYYY-MM-DD)")] = None,
     duration: Annotated[Optional[int], typer.Option("--duration", "-d", help="Meeting duration in minutes")] = None,
-    this_week: Annotated[bool, typer.Option("--this-week", help="Search from now until end of current week")] = False,
-    next_week: Annotated[bool, typer.Option("--next-week", help="Search next week (Monday to Sunday)")] = False,
-    mock: Annotated[bool, typer.Option("--mock", help="Use mock data instead of real Microsoft Graph API (for testing)")] = False
+    mock: Annotated[bool, typer.Option("--mock", help="Mock-Daten nutzen und Authentifizierung überspringen.")] = False,
+    this_week: Annotated[bool, typer.Option("--this-week", help="Suche von jetzt bis Ende der aktuellen Woche.")] = False,
+    next_week: Annotated[bool, typer.Option("--next-week", help="Suche in der kommenden Woche (Montag–Sonntag).")] = False,
 ):
     """
     Find available meeting slots - Supports Interactive and Batch mode.
@@ -176,66 +223,33 @@ def find(
         console.print("[bold cyan]🗓️  Timeslotfinder - Verfügbare Termine finden[/bold cyan]")
         console.print("="*60 + "\n")
         
+        time_start, time_end, time_preset = _determine_time_range(
+            console=console,
+            tz=tz,
+            this_week=this_week,
+            next_week=next_week,
+            start_option=start,
+            end_option=end
+        )
+
         if mock:
             console.print("[yellow]⚠  MOCK-MODUS: Verwende Test-Daten[/yellow]\n")
         
-        # DETERMINE TIME RANGE: Shortcuts take precedence over explicit dates
-        if this_week and next_week:
-            console.print("[red]Fehler: --this-week und --next-week können nicht gleichzeitig verwendet werden.[/red]")
-            raise typer.Exit(1)
-        
-        if this_week:
-            # Start: now, End: end of current week (Sunday)
-            start_date = pendulum.now(tz)
-            end_date = pendulum.now(tz).end_of("week")
-            time_preset = True
-        elif next_week:
-            # Start: next Monday 00:00, End: next Sunday 23:59
-            start_date = pendulum.now(tz).next(pendulum.MONDAY).start_of("day")
-            end_date = start_date.end_of("week")
-            time_preset = True
-        else:
-            start_date = None
-            end_date = None
-            time_preset = False
-        
-        # HYBRID MODE: Batch vs Interactive
-        if participants:
-            # BATCH MODE: participants provided as arguments
-            participant_list = list(participants)
-            
-            # Use preset dates if available, otherwise parse from options or use defaults
-            if not time_preset:
-                if start:
-                    try:
-                        start_date = pendulum.from_format(start, "YYYY-MM-DD", tz=tz).start_of("day")
-                    except Exception as e:
-                        console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
-                        raise typer.Exit(1)
-                else:
-                    start_date = pendulum.now(tz).start_of("day")
-                
-                if end:
-                    try:
-                        end_date = pendulum.from_format(end, "YYYY-MM-DD", tz=tz).end_of("day")
-                    except Exception as e:
-                        console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
-                        raise typer.Exit(1)
-                else:
-                    end_date = start_date.add(days=7).end_of("day")
-            
+        participant_args = participants or []
+
+        if participant_args:
+            participant_list = list(participant_args)
             min_duration = duration if duration is not None else config.defaults.duration_minutes
-            
+            start_date = time_start
+            end_date = time_end
         else:
-            # INTERACTIVE MODE: run wizard
             wizard_result = _run_interactive_wizard(
-                config, 
-                console, 
-                skip_dates=time_preset, 
-                start_date=start_date, 
-                end_date=end_date
+                config,
+                console,
+                skip_dates=time_preset,
+                start_date=time_start,
+                end_date=time_end
             )
-            
             participant_list = wizard_result["participants"]
             start_date = wizard_result["start"]
             end_date = wizard_result["end"]
