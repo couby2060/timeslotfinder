@@ -5,6 +5,8 @@ Main CLI application using Typer.
 from pathlib import Path
 from typing import Annotated, List, Optional, Tuple
 
+import click
+from click.core import ParameterSource
 import anyio
 import pendulum
 import typer
@@ -239,6 +241,19 @@ def find(
         timeslotfinder find --mock
         timeslotfinder find ich max --mock --next-week
     """
+
+    ctx = click.get_current_context()
+
+    def _flag_was_supplied(param_name: str) -> bool:
+        source = ctx.get_parameter_source(param_name)
+        return source is not None and source is not ParameterSource.DEFAULT
+
+    if not _flag_was_supplied("this_week"):
+        this_week = False
+    if not _flag_was_supplied("next_week"):
+        next_week = False
+    if not _flag_was_supplied("mock"):
+        mock = False
 
     # TODO: Remove after debugging
     console.print(f"[dim]Debug: this_week={this_week}, next_week={next_week}, mock={mock}[/dim]")
