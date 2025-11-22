@@ -148,9 +148,10 @@ class MockGraphClient:
             # No valid events found
             return pendulum.duration()
         
-        # Calculate delta: Target - Source
-        # We want to shift events so they align with the target week
-        delta = target_start - earliest_event_start
+        # Calculate delta between the start-of-day anchors to preserve time-of-day information
+        target_anchor = target_start.start_of("day")
+        source_anchor = earliest_event_start.start_of("day")
+        delta = target_anchor - source_anchor
         
         return delta
     
