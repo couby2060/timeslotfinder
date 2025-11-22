@@ -2,16 +2,17 @@
 Microsoft Graph API client for fetching calendar data.
 """
 
+import logging
 from typing import List, Dict, Any
 
+import httpx
 import pendulum
-import requests
 from pendulum import DateTime
-from rich.console import Console
 
+from ..domain.exceptions import CalendarAPIError
 from ..domain.models import TimeRange
 
-console = Console()
+logger = logging.getLogger(__name__)
 
 
 class GraphClient:
@@ -36,12 +37,12 @@ class GraphClient:
             "Content-Type": "application/json"
         }
     
-    def get_schedule(
+    async def get_schedule(
         self,
         emails: List[str],
         start_time: DateTime,
         end_time: DateTime,
-        timezone: str = "Europe/Berlin"
+        timezone: str,
     ) -> Dict[str, List[TimeRange]]:
         """
         Get schedule (busy times) for multiple users.
@@ -58,7 +59,7 @@ class GraphClient:
             Dictionary mapping email -> list of busy TimeRange objects
             
         Raises:
-            RuntimeError: If API call fails
+            CalendarAPIError: If API call fails
         """
         url = f"{self.GRAPH_API_ENDPOINT}/me/calendar/getSchedule"
         
@@ -77,18 +78,22 @@ class GraphClient:
         }
         
         try:
-            response = requests.post(
-                url,
-                headers=self.headers,
-                json=payload,
-                timeout=30
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Failed to fetch schedule from Microsoft Graph: {e}")
-        
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    headers=self.headers,
+                    json=payload,
+                )
+                response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise CalendarAPIError(
+                f"Microsoft Graph returned {exc.response.status_code} while fetching schedules."
+            ) from exc
+        except httpx.RequestError as exc:
+            raise CalendarAPIError("Failed to reach Microsoft Graph for schedule data.") from exc
+
+        data = response.json()
+
         # Parse response
         return self._parse_schedule_response(data, timezone)
     
@@ -143,9 +148,7 @@ class GraphClient:
                         busy_ranges.append(TimeRange(start=start, end=end))
                     
                     except (KeyError, ValueError) as e:
-                        console.print(
-                            f"[yellow]Warning: Could not parse schedule item: {e}[/yellow]"
-                        )
+                        logger.warning("Could not parse schedule item: %s", e)
                         continue
             
             busy_times[email] = busy_ranges
@@ -173,7 +176,7 @@ class GraphClient:
         # If parsing failed, raise error
         raise ValueError(f"Could not parse datetime: {datetime_str}")
     
-    def test_connection(self) -> Dict[str, Any]:
+    async def test_connection(self) -> Dict[str, Any]:
         """
         Test the connection and authentication by fetching user profile.
         
@@ -181,15 +184,20 @@ class GraphClient:
             User profile data
             
         Raises:
-            RuntimeError: If connection test fails
+            CalendarAPIError: If the test request fails
         """
         url = f"{self.GRAPH_API_ENDPOINT}/me"
         
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Connection test failed: {e}")
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=self.headers)
+                response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise CalendarAPIError(
+                f"Microsoft Graph returned {exc.response.status_code} during connection test."
+            ) from exc
+        except httpx.RequestError as exc:
+            raise CalendarAPIError("Failed to reach Microsoft Graph when testing the connection.") from exc
+
+        return response.json()
 

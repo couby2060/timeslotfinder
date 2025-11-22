@@ -12,7 +12,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Dependencies installieren
-pip install -r requirements.txt
+pip install .
 ```
 
 ## 2️⃣ Mock-Modus testen
@@ -113,7 +113,7 @@ Mit dem Mock-Modus kannst du testen:
 
 ### "ModuleNotFoundError: No module named 'pendulum'"
 → Aktiviere das venv: `source venv/bin/activate`
-→ Installiere Dependencies: `pip install -r requirements.txt`
+→ Installiere Dependencies: `pip install .`
 
 ### "No slots found"
 → Normal! Die Mock-Daten sind für MORGEN

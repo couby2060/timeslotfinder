@@ -10,7 +10,7 @@ python3 -m venv venv
 source venv/bin/activate  # Auf Windows: venv\Scripts\activate
 
 # Dependencies installieren
-pip install -r requirements.txt
+pip install .
 ```
 
 ## 2️⃣ Azure AD App erstellen (5 Minuten)

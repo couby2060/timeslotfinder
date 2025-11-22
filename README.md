@@ -68,7 +68,7 @@ source venv/bin/activate  # Auf Windows: venv\Scripts\activate
 #### 3. Dependencies installieren
 
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
 
 ### 4. Azure AD App Registration

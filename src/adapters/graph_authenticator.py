@@ -2,14 +2,33 @@
 Microsoft Graph API authentication using MSAL (Device Code Flow).
 """
 
-import json
+from __future__ import annotations
+
+import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Optional
 
 import msal
 from rich.console import Console
 
+from ..domain.exceptions import AuthenticationError
+
+try:
+    import keyring
+    from keyring.errors import KeyringError
+except ImportError:  # pragma: no cover - optional dependency at runtime
+    keyring = None  # type: ignore[assignment]
+
+    class KeyringError(Exception):  # type: ignore[override]
+        """Fallback error type when keyring is unavailable."""
+
+
+logger = logging.getLogger(__name__)
+
 console = Console()
+
+
+KEYRING_SERVICE_NAME = "timeslotfinder"
 
 
 class GraphAuthenticator:
@@ -54,6 +73,14 @@ class GraphAuthenticator:
         
         # Token cache
         self.cache_file = cache_file or Path.home() / ".timeslotfinder_token_cache.json"
+        self._key_identifier = f"{self.client_id}:{self.tenant_id}"
+        self._keyring_supported = keyring is not None
+        self._cache_backend = "keyring" if self._keyring_supported else "file"
+        self._insecure_storage_warning: Optional[str] = None
+        if not self._keyring_supported:
+            self._set_insecure_storage_warning(
+                "Python keyring backend unavailable; using plaintext file cache."
+            )
         self.cache = self._load_cache()
         
         # Create MSAL PublicClientApplication
@@ -63,29 +90,105 @@ class GraphAuthenticator:
             token_cache=self.cache
         )
     
+    @property
+    def cache_backend(self) -> str:
+        """Return the active cache backend (keyring or file)."""
+        return self._cache_backend
+
+    @property
+    def insecure_storage_warning(self) -> Optional[str]:
+        """Provide a warning message when the cache falls back to plaintext storage."""
+        return self._insecure_storage_warning
+
     def _load_cache(self) -> msal.SerializableTokenCache:
-        """Load token cache from disk if it exists."""
+        """Load token cache from keyring or disk if it exists."""
         cache = msal.SerializableTokenCache()
-        
+
+        serialized = self._load_cache_from_keyring()
+        if serialized is None:
+            serialized = self._load_cache_from_file()
+
+        if serialized:
+            try:
+                cache.deserialize(serialized)
+            except ValueError as exc:
+                logger.warning("Could not deserialize token cache: %s", exc)
+
+        return cache
+
+    def _load_cache_from_keyring(self) -> Optional[str]:
+        if not self._keyring_supported:
+            return None
+
+        try:
+            return keyring.get_password(KEYRING_SERVICE_NAME, self._key_identifier)
+        except KeyringError as exc:  # pragma: no cover - environment dependent
+            self._handle_keyring_failure(f"reading credentials failed: {exc}")
+            return None
+
+    def _load_cache_from_file(self) -> Optional[str]:
         if self.cache_file.exists():
             try:
-                with open(self.cache_file, "r") as f:
-                    cache.deserialize(f.read())
-            except Exception as e:
-                console.print(f"[yellow]Warning: Could not load token cache: {e}[/yellow]")
-        
-        return cache
+                with open(self.cache_file, "r", encoding="utf-8") as file_handle:
+                    return file_handle.read()
+            except OSError as exc:
+                logger.warning("Could not load token cache file %s: %s", self.cache_file, exc)
+        return None
     
     def _save_cache(self) -> None:
-        """Save token cache to disk."""
-        if self.cache.has_state_changed:
-            try:
-                with open(self.cache_file, "w") as f:
-                    f.write(self.cache.serialize())
-                # Set restrictive permissions (owner only)
-                self.cache_file.chmod(0o600)
-            except Exception as e:
-                console.print(f"[yellow]Warning: Could not save token cache: {e}[/yellow]")
+        """Save token cache to the configured backend."""
+        if not self.cache.has_state_changed:
+            return
+
+        serialized = self.cache.serialize()
+
+        if self._keyring_supported and self._save_cache_to_keyring(serialized):
+            return
+
+        self._save_cache_to_file(serialized)
+
+    def _save_cache_to_keyring(self, serialized: str) -> bool:
+        if not self._keyring_supported:
+            return False
+
+        try:
+            keyring.set_password(
+                KEYRING_SERVICE_NAME,
+                self._key_identifier,
+                serialized,
+            )
+            self._cache_backend = "keyring"
+            return True
+        except KeyringError as exc:  # pragma: no cover - environment dependent
+            self._handle_keyring_failure(f"writing credentials failed: {exc}")
+            return False
+
+    def _save_cache_to_file(self, serialized: str) -> None:
+        try:
+            self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.cache_file, "w", encoding="utf-8") as file_handle:
+                file_handle.write(serialized)
+            self.cache_file.chmod(0o600)
+        except OSError as exc:
+            logger.warning("Could not save token cache to %s: %s", self.cache_file, exc)
+
+    def _handle_keyring_failure(self, reason: str) -> None:
+        if self._keyring_supported:
+            logger.warning(
+                "Secure credential storage unavailable (%s). Falling back to plaintext cache.",
+                reason,
+            )
+        self._keyring_supported = False
+        self._cache_backend = "file"
+        self._set_insecure_storage_warning(
+            f"Secure credential storage unavailable ({reason}). "
+            f"Falling back to plaintext cache at {self.cache_file}."
+        )
+
+    def _set_insecure_storage_warning(self, message: str) -> None:
+        if self._insecure_storage_warning:
+            return
+        self._insecure_storage_warning = message
     
     def get_access_token(self, force_refresh: bool = False) -> str:
         """
@@ -98,7 +201,7 @@ class GraphAuthenticator:
             Access token string
             
         Raises:
-            RuntimeError: If authentication fails
+            AuthenticationError: If authentication fails
         """
         # Try to get token silently from cache first
         if not force_refresh:
@@ -123,16 +226,19 @@ class GraphAuthenticator:
             Access token
             
         Raises:
-            RuntimeError: If authentication fails
+            AuthenticationError: If authentication fails
         """
         console.print("\n[bold cyan]🔐 Microsoft Authentication Required[/bold cyan]")
         console.print("You need to sign in to access calendar information.\n")
         
         # Initiate device flow
-        flow = self.app.initiate_device_flow(scopes=self.SCOPES)
+        try:
+            flow = self.app.initiate_device_flow(scopes=self.SCOPES)
+        except Exception as exc:  # pragma: no cover - MSAL internal failure
+            raise AuthenticationError(f"Failed to initiate device flow: {exc}") from exc
         
         if "user_code" not in flow:
-            raise RuntimeError(
+            raise AuthenticationError(
                 f"Failed to initiate device flow: {flow.get('error_description', 'Unknown error')}"
             )
         
@@ -149,7 +255,7 @@ class GraphAuthenticator:
         
         if "access_token" not in result:
             error = result.get("error_description", "Unknown error")
-            raise RuntimeError(f"Authentication failed: {error}")
+            raise AuthenticationError(f"Authentication failed: {error}")
         
         console.print("[bold green]✓ Authentication successful![/bold green]\n")
         
@@ -162,6 +268,11 @@ class GraphAuthenticator:
         """Clear the token cache (force re-authentication next time)."""
         if self.cache_file.exists():
             self.cache_file.unlink()
+        if keyring is not None:
+            try:
+                keyring.delete_password(KEYRING_SERVICE_NAME, self._key_identifier)
+            except KeyringError as exc:  # pragma: no cover - environment dependent
+                logger.warning("Could not remove credentials from keyring: %s", exc)
         self.cache = msal.SerializableTokenCache()
         console.print("[green]Token cache cleared. You will need to re-authenticate.[/green]")
 

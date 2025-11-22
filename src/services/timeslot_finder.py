@@ -20,12 +20,12 @@ from ..domain.slot_calculator import SlotCalculator
 class CalendarClientProtocol(Protocol):
     """Protocol describing the calendar client behaviour needed by the service."""
 
-    def get_schedule(
+    async def get_schedule(
         self,
         emails: List[str],
         start_time: DateTime,
         end_time: DateTime,
-        timezone: str = "Europe/Berlin",
+        timezone: str,
     ) -> Dict[str, List[TimeRange]]:
         """Return busy time ranges per participant."""
 
@@ -46,7 +46,7 @@ class TimeslotFinderService:
         self._calendar_client = calendar_client
         self._slot_calculator = slot_calculator
 
-    def find_slots(
+    async def find_slots(
         self,
         *,
         participants: Sequence[str],
@@ -58,7 +58,7 @@ class TimeslotFinderService:
         """
         Retrieve busy data, normalize it, and compute available slots.
         """
-        busy_times = self.fetch_busy_times(
+        busy_times = await self.fetch_busy_times(
             participants=participants,
             start_date=start_date,
             end_date=end_date,
@@ -72,7 +72,7 @@ class TimeslotFinderService:
             min_duration_minutes=min_duration_minutes,
         )
 
-    def fetch_busy_times(
+    async def fetch_busy_times(
         self,
         *,
         participants: Sequence[str],
@@ -83,7 +83,7 @@ class TimeslotFinderService:
         """Fetch busy times for the requested participants."""
         participant_list = list(participants)
 
-        busy_times = self._calendar_client.get_schedule(
+        busy_times = await self._calendar_client.get_schedule(
             emails=participant_list,
             start_time=start_date,
             end_time=end_date,

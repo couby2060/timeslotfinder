@@ -12,11 +12,10 @@ help:
 	@echo "  make run          - Run the CLI app"
 
 install:
-	pip install -r requirements.txt
+	pip install .
 
 dev-install:
-	pip install -r requirements.txt
-	pip install -e .
+	pip install -e ".[dev]"
 
 format:
 	black src/

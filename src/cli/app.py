@@ -5,6 +5,7 @@ Main CLI application using Typer.
 from pathlib import Path
 from typing import Annotated, List, Optional, Tuple
 
+import anyio
 import pendulum
 import typer
 from pendulum import DateTime
@@ -16,6 +17,7 @@ from ..adapters.graph_authenticator import GraphAuthenticator
 from ..adapters.graph_client import GraphClient
 from ..adapters.mock_graph_client import MockGraphClient
 from ..config import AppConfig, get_default_config_path
+from ..domain.exceptions import AuthenticationError, CalendarAPIError, TimeslotError
 from ..domain.models import WorkingHours
 from ..domain.slot_calculator import SlotCalculator
 from ..services.timeslot_finder import TimeslotFinderService
@@ -228,8 +230,8 @@ def find(
         timeslotfinder find --mock
         timeslotfinder find ich max --mock --next-week
     """
-    
-    try:
+
+    async def _run_find() -> None:
         # Load configuration
         config_path = config_file or get_default_config_path()
         config = AppConfig.load_from_yaml(config_path)
@@ -302,6 +304,8 @@ def find(
                 tenant_id=config.tenant_id,
                 authority_url=config.get_authority_url()
             )
+            if authenticator.insecure_storage_warning:
+                console.print(f"[yellow]{authenticator.insecure_storage_warning}[/yellow]")
             access_token = authenticator.get_access_token(force_refresh=False)
             console.print("[green]✓ Authentifizierung erfolgreich[/green]")
         
@@ -320,7 +324,7 @@ def find(
         if mock:
             console.print("[yellow]⊘ Verwende Mock-Daten aus Kalender-JSON[/yellow]")
 
-        busy_times = service.fetch_busy_times(
+        busy_times = await service.fetch_busy_times(
             participants=participant_emails,
             start_date=start_date,
             end_date=end_date,
@@ -357,11 +361,23 @@ def find(
                 console.print(f"  {slot.format_display()}")
         
         console.print()
-    
+
+    try:
+        anyio.run(_run_find)
     except FileNotFoundError as e:
         console.print(f"[bold red]Fehler:[/bold red] {e}")
         raise typer.Exit(1)
-    
+    except AuthenticationError as e:
+        console.print(f"[bold red]Authentifizierungsfehler:[/bold red] {e}")
+        raise typer.Exit(1)
+    except CalendarAPIError as e:
+        console.print(f"[bold red]Kalender-API-Fehler:[/bold red] {e}")
+        raise typer.Exit(1)
+    except TimeslotError as e:
+        console.print(f"[bold red]Fehler:[/bold red] {e}")
+        raise typer.Exit(1)
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"[bold red]Fehler:[/bold red] {e}")
         raise typer.Exit(1)
@@ -425,7 +441,7 @@ def test_auth(
     """
     Test Microsoft Graph authentication.
     """
-    try:
+    async def _run_test_auth() -> None:
         config_path = config_file or get_default_config_path()
         config = AppConfig.load_from_yaml(config_path)
         
@@ -437,12 +453,14 @@ def test_auth(
             tenant_id=config.tenant_id,
             authority_url=config.get_authority_url()
         )
+        if authenticator.insecure_storage_warning:
+            console.print(f"[yellow]{authenticator.insecure_storage_warning}[/yellow]")
         
         access_token = authenticator.get_access_token(force_refresh=force)
         
         # Test connection
         client = GraphClient(access_token=access_token)
-        user_info = client.test_connection()
+        user_info = await client.test_connection()
         
         # Display success
         console.print(Panel.fit(
@@ -452,7 +470,20 @@ def test_auth(
             title="✓ Verbindungstest"
         ))
         console.print()
-    
+
+    try:
+        anyio.run(_run_test_auth)
+    except FileNotFoundError as e:
+        console.print(f"[bold red]Fehler:[/bold red] {e}")
+        raise typer.Exit(1)
+    except AuthenticationError as e:
+        console.print(f"[bold red]Authentifizierungsfehler:[/bold red] {e}")
+        raise typer.Exit(1)
+    except CalendarAPIError as e:
+        console.print(f"[bold red]Kalender-API-Fehler:[/bold red] {e}")
+        raise typer.Exit(1)
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"\n[bold red]✗ Fehler:[/bold red] {e}\n")
         raise typer.Exit(1)

@@ -17,7 +17,7 @@ echo ""
 echo "📥 Installing dependencies..."
 source venv/bin/activate
 pip install -q --upgrade pip
-pip install -q -r requirements.txt
+pip install -q .
 
 echo ""
 echo "✅ Installation complete!"

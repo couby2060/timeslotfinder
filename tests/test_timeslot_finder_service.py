@@ -2,6 +2,7 @@
 Tests for the TimeslotFinderService orchestration layer.
 """
 
+import asyncio
 from datetime import time
 from typing import Dict, List
 
@@ -19,7 +20,7 @@ class StubCalendarClient:
         self._schedule = schedule
         self.calls: List[Dict[str, str]] = []
 
-    def get_schedule(self, emails, start_time, end_time, timezone="Europe/Berlin"):
+    async def get_schedule(self, emails, start_time, end_time, timezone):
         self.calls.append(
             {
                 "emails": tuple(emails),
@@ -48,11 +49,13 @@ def test_fetch_busy_times_includes_missing_participants():
     start = pendulum.parse("2024-11-25 00:00", tz="Europe/Berlin")
     end = pendulum.parse("2024-11-25 23:59", tz="Europe/Berlin")
 
-    busy_times = service.fetch_busy_times(
-        participants=["a@example.com", "b@example.com"],
-        start_date=start,
-        end_date=end,
-        timezone="Europe/Berlin",
+    busy_times = asyncio.run(
+        service.fetch_busy_times(
+            participants=["a@example.com", "b@example.com"],
+            start_date=start,
+            end_date=end,
+            timezone="Europe/Berlin",
+        )
     )
 
     assert set(busy_times.keys()) == {"a@example.com", "b@example.com"}
@@ -76,12 +79,14 @@ def test_find_slots_uses_calendar_data_and_calculator():
     }
     service = _build_service(schedule=schedule)
 
-    slots = service.find_slots(
-        participants=["a@example.com", "b@example.com"],
-        start_date=slot_start,
-        end_date=slot_end,
-        timezone="Europe/Berlin",
-        min_duration_minutes=30,
+    slots = asyncio.run(
+        service.find_slots(
+            participants=["a@example.com", "b@example.com"],
+            start_date=slot_start,
+            end_date=slot_end,
+            timezone="Europe/Berlin",
+            min_duration_minutes=30,
+        )
     )
 
     assert len(slots) == 2  # 09-11 and 12-17 total

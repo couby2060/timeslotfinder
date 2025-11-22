@@ -8,9 +8,7 @@
 ├── 📄 ARCHITECTURE.md                # Architektur-Dokumentation
 ├── 📄 PROJECT_STRUCTURE.md           # Diese Datei
 │
-├── 📄 requirements.txt               # Python Dependencies
-├── 📄 pyproject.toml                 # Python Project Config
-├── 📄 setup.py                       # Package Setup
+├── 📄 pyproject.toml                 # Python Project Config & Dependencies
 ├── 📄 Makefile                       # Build & Dev Commands
 ├── 📄 LICENSE                        # MIT License
 ├── 📄 .python-version                # Python Version (pyenv)
@@ -59,9 +57,7 @@
 
 | File | Purpose |
 |------|---------|
-| `requirements.txt` | Python Dependencies (pip install -r requirements.txt) |
-| `pyproject.toml` | Modern Python Project Config (PEP 518), Tool Config |
-| `setup.py` | Package Setup für Installation (pip install -e .) |
+| `pyproject.toml` | Projekt-Metadaten, Dependencies und Tool-Konfiguration |
 | `Makefile` | Development Commands (make format, make test, etc.) |
 | `.python-version` | Python Version für pyenv |
 | `.gitignore` | Git Ignore Rules |
@@ -128,7 +124,7 @@
 |------|-------|
 | `timeslotfinder.py` | Direct execution: `python timeslotfinder.py` |
 | `src/__main__.py` | Module execution: `python -m src` |
-| After install | Command: `timeslotfinder` (from setup.py) |
+| After install | Command: `timeslotfinder` (defined in pyproject) |
 
 ## Directory Guidelines
 
@@ -238,7 +234,7 @@ Example Config (IN Git):
 # 1. Setup
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install .[dev]
 
 # 2. Run
 python timeslotfinder.py find max anna

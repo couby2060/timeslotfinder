@@ -4,7 +4,7 @@ Mock Microsoft Graph API client for testing without Azure authentication.
 
 import json
 from pathlib import Path
-from typing import List, Dict
+from typing import Any, Dict, List
 
 import pendulum
 from pendulum import DateTime
@@ -54,12 +54,12 @@ class MockGraphClient:
         # Fallback: use email as calendar_id
         return email
     
-    def get_schedule(
+    async def get_schedule(
         self,
         emails: List[str],
         start_time: DateTime,
         end_time: DateTime,
-        timezone: str = "Europe/Berlin"
+        timezone: str,
     ) -> Dict[str, List[TimeRange]]:
         """
         Load busy times from mock calendar data (JSON file) with dynamic date shifting.
@@ -154,7 +154,7 @@ class MockGraphClient:
         
         return delta
     
-    def test_connection(self) -> Dict[str, any]:
+    async def test_connection(self) -> Dict[str, Any]:
         """
         Mock connection test.
         
