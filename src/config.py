@@ -37,6 +37,7 @@ class Colleague(BaseModel):
     """Colleague/Participant configuration."""
     name: str  # Used as alias
     email: str
+    calendar_id: str = ""  # Optional: for mock data mapping
     
     def display_name(self) -> str:
         """Get display name."""

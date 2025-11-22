@@ -2,6 +2,8 @@
 Mock Microsoft Graph API client for testing without Azure authentication.
 """
 
+import json
+from pathlib import Path
 from typing import List, Dict
 
 import pendulum
@@ -14,21 +16,43 @@ class MockGraphClient:
     """
     Mock client that simulates Microsoft Graph API responses.
     
-    This client generates realistic busy times for testing purposes,
-    without requiring actual Microsoft authentication or API access.
-    
-    The mock data is generated relative to the current date to ensure
-    consistent testing regardless of when the code is run.
+    This client loads realistic calendar data from mock_calendar_data.json
+    for testing purposes, without requiring actual Microsoft authentication
+    or API access.
     """
     
-    def __init__(self, access_token: str = "mock_token"):
+    def __init__(self, access_token: str = "mock_token", config=None):
         """
         Initialize the mock client.
         
         Args:
             access_token: Dummy token (not used, but kept for interface compatibility)
+            config: Optional AppConfig for calendar_id mapping
         """
         self.access_token = access_token
+        self.config = config
+        self._load_calendar_data()
+    
+    def _load_calendar_data(self):
+        """Load mock calendar data from JSON file."""
+        data_file = Path(__file__).parent / "mock_calendar_data.json"
+        
+        if data_file.exists():
+            with open(data_file, "r", encoding="utf-8") as f:
+                self.calendar_events = json.load(f)
+        else:
+            # Fallback to empty if file doesn't exist
+            self.calendar_events = []
+    
+    def _get_calendar_id_for_email(self, email: str) -> str:
+        """Map email to calendar_id using config."""
+        if self.config:
+            colleague = self.config.find_colleague_by_email(email)
+            if colleague and colleague.calendar_id:
+                return colleague.calendar_id
+        
+        # Fallback: use email as calendar_id
+        return email
     
     def get_schedule(
         self,
@@ -38,21 +62,7 @@ class MockGraphClient:
         timezone: str = "Europe/Berlin"
     ) -> Dict[str, List[TimeRange]]:
         """
-        Generate mock schedule (busy times) for multiple users.
-        
-        Mock Scenario:
-        - First user: Busy tomorrow 09:00-11:00
-        - Second user: Busy tomorrow 10:00-12:00
-        - Third+ users: Busy tomorrow 13:00-14:00
-        
-        This creates a realistic scenario where:
-        - Morning before 09:00 is free for all
-        - 09:00-10:00 is free only for users 2+
-        - 10:00-11:00 is busy for users 1 & 2
-        - 11:00-12:00 is busy only for user 2
-        - 12:00-13:00 is free for all
-        - 13:00-14:00 is busy for users 3+
-        - 14:00-17:00 is free for all
+        Load busy times from mock calendar data (JSON file).
         
         Args:
             emails: List of user email addresses
@@ -65,45 +75,27 @@ class MockGraphClient:
         """
         busy_times: Dict[str, List[TimeRange]] = {}
         
-        # Get tomorrow's date in the specified timezone
-        now = pendulum.now(timezone)
-        tomorrow = now.add(days=1)
-        
-        # Generate busy times for each user
-        for idx, email in enumerate(emails):
+        for email in emails:
+            calendar_id = self._get_calendar_id_for_email(email)
             user_busy_times: List[TimeRange] = []
             
-            if idx == 0:
-                # First user: Busy 09:00-11:00 tomorrow
-                busy_start = tomorrow.set(hour=9, minute=0, second=0, microsecond=0)
-                busy_end = tomorrow.set(hour=11, minute=0, second=0, microsecond=0)
+            # Filter events for this calendar that overlap with the time window
+            for event in self.calendar_events:
+                if event.get("calendarId") != calendar_id:
+                    continue
                 
-                # Only add if it overlaps with the requested time window
-                if busy_start < end_time and busy_end > start_time:
-                    user_busy_times.append(TimeRange(start=busy_start, end=busy_end))
-            
-            elif idx == 1:
-                # Second user: Busy 10:00-12:00 tomorrow
-                busy_start = tomorrow.set(hour=10, minute=0, second=0, microsecond=0)
-                busy_end = tomorrow.set(hour=12, minute=0, second=0, microsecond=0)
+                try:
+                    # Parse event times
+                    event_start = pendulum.parse(event["start"], tz=timezone)
+                    event_end = pendulum.parse(event["end"], tz=timezone)
+                    
+                    # Check if event overlaps with requested time window
+                    if event_start < end_time and event_end > start_time:
+                        user_busy_times.append(TimeRange(start=event_start, end=event_end))
                 
-                if busy_start < end_time and busy_end > start_time:
-                    user_busy_times.append(TimeRange(start=busy_start, end=busy_end))
-            
-            else:
-                # Third+ users: Busy 13:00-14:00 tomorrow
-                busy_start = tomorrow.set(hour=13, minute=0, second=0, microsecond=0)
-                busy_end = tomorrow.set(hour=14, minute=0, second=0, microsecond=0)
-                
-                if busy_start < end_time and busy_end > start_time:
-                    user_busy_times.append(TimeRange(start=busy_start, end=busy_end))
-                
-                # Add another busy time for today if requested range includes today
-                today_busy_start = now.set(hour=15, minute=0, second=0, microsecond=0)
-                today_busy_end = now.set(hour=16, minute=0, second=0, microsecond=0)
-                
-                if today_busy_start < end_time and today_busy_end > start_time:
-                    user_busy_times.append(TimeRange(start=today_busy_start, end=today_busy_end))
+                except (KeyError, ValueError) as e:
+                    # Skip invalid events
+                    continue
             
             busy_times[email] = user_busy_times
         

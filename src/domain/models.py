@@ -99,7 +99,7 @@ class TimeSlot:
     def format_display(self) -> str:
         """
         Format the slot for display.
-        Format: Wochentag, DD.MM.YYYY | HH:MM – HH:MM Uhr
+        Format: Wochentag, Datum: von-bis
         """
         start = self.time_range.start
         end = self.time_range.end
@@ -117,8 +117,7 @@ class TimeSlot:
         
         weekday = weekday_names[start.day_of_week]
         date_str = start.format("DD.MM.YYYY")
-        time_str = f"{start.format('HH:mm')} – {end.format('HH:mm')} Uhr"
-        duration = self.time_range.duration_minutes()
+        time_range_str = f"{start.format('HH:mm')}-{end.format('HH:mm')}"
         
-        return f"{weekday}, {date_str} | {time_str} ({duration} Min.)"
+        return f"{weekday}, {date_str}: {time_range_str}"
 

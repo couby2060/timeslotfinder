@@ -1,0 +1,354 @@
+[
+    {
+        "id": 101,
+        "calendarId": "cal_1",
+        "title": "Weekly Kick-off",
+        "start": "2025-11-24T09:00:00",
+        "end": "2025-11-24T09:45:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 102,
+        "calendarId": "cal_2",
+        "title": "Daily Standup",
+        "start": "2025-11-24T10:00:00",
+        "end": "2025-11-24T10:15:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 103,
+        "calendarId": "cal_3",
+        "title": "Kunden-Call: Meier GmbH",
+        "start": "2025-11-24T10:30:00",
+        "end": "2025-11-24T11:30:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 104,
+        "calendarId": "cal_2",
+        "title": "Deep Work: API Integration",
+        "start": "2025-11-24T13:00:00",
+        "end": "2025-11-24T14:30:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 105,
+        "calendarId": "cal_1",
+        "title": "Budget Review Q4",
+        "start": "2025-11-24T15:00:00",
+        "end": "2025-11-24T16:30:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 106,
+        "calendarId": "cal_3",
+        "title": "Internes Sales Training",
+        "start": "2025-11-25T09:00:00",
+        "end": "2025-11-25T10:30:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 107,
+        "calendarId": "cal_2",
+        "title": "Sprint Planning",
+        "start": "2025-11-25T11:00:00",
+        "end": "2025-11-25T12:30:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 108,
+        "calendarId": "cal_1",
+        "title": "Mittagspause mit Team",
+        "start": "2025-11-25T12:30:00",
+        "end": "2025-11-25T13:30:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 109,
+        "calendarId": "cal_3",
+        "title": "Lead Follow-up",
+        "start": "2025-11-25T14:00:00",
+        "end": "2025-11-25T14:45:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 110,
+        "calendarId": "cal_2",
+        "title": "Bugfixing: Login Issue",
+        "start": "2025-11-25T15:00:00",
+        "end": "2025-11-25T16:00:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 111,
+        "calendarId": "cal_2",
+        "title": "Daily Standup",
+        "start": "2025-11-26T10:00:00",
+        "end": "2025-11-26T10:15:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 112,
+        "calendarId": "cal_1",
+        "title": "1:1 mit Mitarbeiter A",
+        "start": "2025-11-26T10:30:00",
+        "end": "2025-11-26T11:00:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 113,
+        "calendarId": "cal_1",
+        "title": "1:1 mit Mitarbeiter B",
+        "start": "2025-11-26T11:15:00",
+        "end": "2025-11-26T11:45:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 114,
+        "calendarId": "cal_3",
+        "title": "Demo: Neukunde X",
+        "start": "2025-11-26T13:00:00",
+        "end": "2025-11-26T14:00:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 115,
+        "calendarId": "cal_2",
+        "title": "Code Review Session",
+        "start": "2025-11-26T15:30:00",
+        "end": "2025-11-26T17:00:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 116,
+        "calendarId": "cal_3",
+        "title": "Reisezeit Hamburg",
+        "start": "2025-11-27T08:00:00",
+        "end": "2025-11-27T09:30:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 117,
+        "calendarId": "cal_1",
+        "title": "Strategie Meeting 2026",
+        "start": "2025-11-27T10:00:00",
+        "end": "2025-11-27T12:00:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 118,
+        "calendarId": "cal_2",
+        "title": "Daily Standup",
+        "start": "2025-11-27T10:00:00",
+        "end": "2025-11-27T10:15:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 119,
+        "calendarId": "cal_2",
+        "title": "Deployment Prod",
+        "start": "2025-11-27T14:00:00",
+        "end": "2025-11-27T15:30:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 120,
+        "calendarId": "cal_3",
+        "title": "Workshop vor Ort",
+        "start": "2025-11-27T13:00:00",
+        "end": "2025-11-27T17:00:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 121,
+        "calendarId": "cal_1",
+        "title": "HR Interview",
+        "start": "2025-11-28T09:00:00",
+        "end": "2025-11-28T09:45:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 122,
+        "calendarId": "cal_2",
+        "title": "Daily Standup",
+        "start": "2025-11-28T10:00:00",
+        "end": "2025-11-28T10:15:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 123,
+        "calendarId": "cal_3",
+        "title": "Vertragsabschluss Call",
+        "start": "2025-11-28T11:00:00",
+        "end": "2025-11-28T11:30:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 124,
+        "calendarId": "cal_2",
+        "title": "Retro",
+        "start": "2025-11-28T14:00:00",
+        "end": "2025-11-28T15:00:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 125,
+        "calendarId": "cal_1",
+        "title": "Weekly Wrap-Up",
+        "start": "2025-11-28T16:00:00",
+        "end": "2025-11-28T16:30:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 126,
+        "calendarId": "cal_2",
+        "title": "Sprint Start",
+        "start": "2025-12-01T09:00:00",
+        "end": "2025-12-01T10:30:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 127,
+        "calendarId": "cal_1",
+        "title": "All Hands Meeting",
+        "start": "2025-12-01T11:00:00",
+        "end": "2025-12-01T12:00:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 128,
+        "calendarId": "cal_3",
+        "title": "All Hands Meeting",
+        "start": "2025-12-01T11:00:00",
+        "end": "2025-12-01T12:00:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 129,
+        "calendarId": "cal_3",
+        "title": "Kaltakquise Block",
+        "start": "2025-12-01T14:00:00",
+        "end": "2025-12-01T15:30:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 130,
+        "calendarId": "cal_2",
+        "title": "Daily Standup",
+        "start": "2025-12-02T10:00:00",
+        "end": "2025-12-02T10:15:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 131,
+        "calendarId": "cal_1",
+        "title": "Jour Fixe Marketing",
+        "start": "2025-12-02T10:30:00",
+        "end": "2025-12-02T11:30:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 132,
+        "calendarId": "cal_3",
+        "title": "Marketing Sync",
+        "start": "2025-12-02T10:30:00",
+        "end": "2025-12-02T11:30:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 133,
+        "calendarId": "cal_2",
+        "title": "Pair Programming",
+        "start": "2025-12-02T13:00:00",
+        "end": "2025-12-02T14:30:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 134,
+        "calendarId": "cal_1",
+        "title": "Board Meeting Vorbereitung",
+        "start": "2025-12-03T08:30:00",
+        "end": "2025-12-03T10:00:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 135,
+        "calendarId": "cal_2",
+        "title": "Daily Standup",
+        "start": "2025-12-03T10:00:00",
+        "end": "2025-12-03T10:15:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 136,
+        "calendarId": "cal_3",
+        "title": "Netzwerk Event",
+        "start": "2025-12-03T12:00:00",
+        "end": "2025-12-03T14:00:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 137,
+        "calendarId": "cal_2",
+        "title": "Tech Talk",
+        "start": "2025-12-03T16:00:00",
+        "end": "2025-12-03T17:00:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 138,
+        "calendarId": "cal_2",
+        "title": "Refinement",
+        "start": "2025-12-04T11:00:00",
+        "end": "2025-12-04T12:00:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 139,
+        "calendarId": "cal_1",
+        "title": "Projekt Review",
+        "start": "2025-12-04T13:00:00",
+        "end": "2025-12-04T14:30:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 140,
+        "calendarId": "cal_3",
+        "title": "Webinar Host",
+        "start": "2025-12-04T15:00:00",
+        "end": "2025-12-04T16:30:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 141,
+        "calendarId": "cal_2",
+        "title": "Daily Standup",
+        "start": "2025-12-05T10:00:00",
+        "end": "2025-12-05T10:15:00",
+        "color": "#33FF57"
+    },
+    {
+        "id": 142,
+        "calendarId": "cal_1",
+        "title": "Freitag Check-in",
+        "start": "2025-12-05T10:30:00",
+        "end": "2025-12-05T11:00:00",
+        "color": "#FF5733"
+    },
+    {
+        "id": 143,
+        "calendarId": "cal_3",
+        "title": "Reporting Woche 49",
+        "start": "2025-12-05T13:00:00",
+        "end": "2025-12-05T14:00:00",
+        "color": "#3357FF"
+    },
+    {
+        "id": 144,
+        "calendarId": "cal_2",
+        "title": "Clean Up & Documentation",
+        "start": "2025-12-05T14:00:00",
+        "end": "2025-12-05T15:30:00",
+        "color": "#33FF57"
+    }
+]

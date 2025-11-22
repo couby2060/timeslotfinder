@@ -3,7 +3,7 @@ Main CLI application using Typer.
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Annotated
 from datetime import datetime
 
 import pendulum
@@ -30,55 +30,25 @@ console = Console()
 
 @app.command()
 def find(
-    participants: List[str] = typer.Argument(
-        ...,
-        help="Participants (aliases or email addresses)"
-    ),
-    start_date: str = typer.Option(
-        None,
-        "--start", "-s",
-        help="Start date (YYYY-MM-DD). Defaults to today."
-    ),
-    end_date: str = typer.Option(
-        None,
-        "--end", "-e",
-        help="End date (YYYY-MM-DD). Defaults to 7 days from start."
-    ),
-    duration: Optional[int] = typer.Option(
-        None,
-        "--duration", "-d",
-        help="Minimum slot duration in minutes. Uses config default if not specified."
-    ),
-    config_file: Optional[Path] = typer.Option(
-        None,
-        "--config", "-c",
-        help="Path to config file. Defaults to ./config.yaml"
-    ),
-    force_auth: bool = typer.Option(
-        False,
-        "--force-auth",
-        help="Force re-authentication (ignore cached token)"
-    ),
-    mock: bool = typer.Option(
-        False,
-        "--mock",
-        help="Use mock data instead of real Microsoft Graph API (for testing)"
-    )
+    config_file: Annotated[Optional[Path], typer.Option("--config", "-c", help="Path to config file. Defaults to ./config.yaml")] = None,
+    mock: Annotated[Optional[bool], typer.Option("--mock", help="Use mock data instead of real Microsoft Graph API (for testing)")] = None
 ):
     """
-    Find available meeting slots for specified participants.
+    Find available meeting slots - Interactive mode.
     
     Examples:
     
-        # Find slots for Max and Anna (using aliases from config)
-        timeslotfinder find max anna
+        # Start the interactive slot finder
+        timeslotfinder find
         
-        # Find slots with specific date range
-        timeslotfinder find max anna --start 2024-11-25 --end 2024-11-29
-        
-        # Find 60-minute slots
-        timeslotfinder find max.mustermann@company.com anna --duration 60
+        # Use mock data (for testing without Azure)
+        timeslotfinder find --mock
     """
+    # Handle mock flag manually via sys.argv (workaround for Typer issue)
+    import sys
+    if mock is None:
+        mock = "--mock" in sys.argv
+    
     try:
         # Load configuration
         config_path = config_file or get_default_config_path()
@@ -86,75 +56,124 @@ def find(
         
         # Set pendulum timezone
         pendulum.set_locale("de")
-        
-        # Parse dates
         tz = config.timezone
-        if start_date:
-            start = pendulum.parse(start_date, tz=tz)
-        else:
-            start = pendulum.now(tz)
         
-        # Ensure start is at beginning of day
-        start = start.start_of("day")
+        # Show header
+        console.print("\n" + "="*60)
+        console.print("[bold cyan]🗓️  Timeslotfinder - Verfügbare Termine finden[/bold cyan]")
+        console.print("="*60 + "\n")
         
-        if end_date:
-            end = pendulum.parse(end_date, tz=tz)
-        else:
-            end = start.add(days=7)
+        if mock:
+            console.print("[yellow]⚠  MOCK-MODUS: Verwende Test-Daten[/yellow]\n")
         
-        # Ensure end is at end of day
-        end = end.end_of("day")
+        # 1. TEILNEHMER AUSWÄHLEN
+        console.print("[bold]1️⃣  Teilnehmer auswählen[/bold]")
+        console.print("\nVerfügbare Kollegen:")
+        for idx, colleague in enumerate(config.colleagues, 1):
+            console.print(f"  {idx}. {colleague.name} ({colleague.email})")
         
-        # Get duration
-        min_duration = duration if duration else config.defaults.duration_minutes
+        participant_input = typer.prompt(
+            "\n→ Teilnehmer (Namen oder Nummern durch Leerzeichen getrennt)",
+            default="1"
+        )
+        
+        # Parse input - can be names or numbers
+        participant_list = []
+        for item in participant_input.split():
+            item = item.strip()
+            # Check if it's a number
+            if item.isdigit():
+                idx = int(item) - 1  # Convert to 0-based index
+                if 0 <= idx < len(config.colleagues):
+                    participant_list.append(config.colleagues[idx].name)
+                else:
+                    console.print(f"[yellow]Warnung: Nummer {item} ungültig, überspringe[/yellow]")
+            else:
+                # It's a name
+                participant_list.append(item)
+        
+        # 2. MEETING-DAUER
+        console.print(f"\n[bold]2️⃣  Meeting-Dauer[/bold]")
+        min_duration = typer.prompt(
+            "→ Mindestdauer in Minuten",
+            default=config.defaults.duration_minutes,
+            type=int
+        )
+        
+        # 3. ZEITRAUM
+        console.print(f"\n[bold]3️⃣  Zeitraum festlegen[/bold]")
+        
+        default_start = pendulum.now(tz).format("YYYY-MM-DD")
+        start_date_str = typer.prompt(
+            "→ Startdatum (YYYY-MM-DD)",
+            default=default_start
+        ).strip()
+        
+        # Parse start date to calculate default end
+        try:
+            start_temp = pendulum.parse(start_date_str, tz=tz)
+            default_end = start_temp.add(days=7).format("YYYY-MM-DD")
+        except Exception:
+            default_end = pendulum.now(tz).add(days=7).format("YYYY-MM-DD")
+        
+        end_date_str = typer.prompt(
+            "→ Enddatum (YYYY-MM-DD)",
+            default=default_end
+        ).strip()
+        
+        console.print("\n" + "="*60 + "\n")
+        
+        # Parse dates with better error handling
+        try:
+            start = pendulum.from_format(start_date_str, "YYYY-MM-DD", tz=tz).start_of("day")
+        except Exception as e:
+            console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
+            raise typer.Exit(1)
+        
+        try:
+            end = pendulum.from_format(end_date_str, "YYYY-MM-DD", tz=tz).end_of("day")
+        except Exception as e:
+            console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
+            raise typer.Exit(1)
         
         # Resolve participant emails
         try:
             participant_emails = [
-                config.resolve_participant(p) for p in participants
+                config.resolve_participant(p) for p in participant_list
             ]
         except ValueError as e:
             console.print(f"[bold red]Error:[/bold red] {e}")
             raise typer.Exit(1)
         
-        # Display search parameters
+        # Display search summary
+        console.print("[bold cyan]📊 Zusammenfassung:[/bold cyan]")
+        console.print(f"   Teilnehmer: {', '.join(participant_emails)}")
+        console.print(f"   Zeitraum: {start.format('DD.MM.YYYY')} - {end.format('DD.MM.YYYY')}")
+        console.print(f"   Mindestdauer: {min_duration} Minuten")
+        console.print(f"   Arbeitszeiten: {config.defaults.start_hour}:00 - {config.defaults.end_hour}:00")
         console.print()
-        
-        # Show mock mode warning if enabled
-        if mock:
-            console.print("[yellow]⚠ Running in MOCK mode using simulated data[/yellow]\n")
-        
-        console.print(Panel.fit(
-            f"[bold cyan]Suche verfügbare Zeitslots[/bold cyan]\n\n"
-            f"[bold]Teilnehmer:[/bold] {', '.join(participant_emails)}\n"
-            f"[bold]Zeitraum:[/bold] {start.format('DD.MM.YYYY')} - {end.format('DD.MM.YYYY')}\n"
-            f"[bold]Mindestdauer:[/bold] {min_duration} Minuten\n"
-            f"[bold]Arbeitszeiten:[/bold] {config.defaults.start_hour}:00 - {config.defaults.end_hour}:00"
-            + (f"\n[bold]Modus:[/bold] [yellow]MOCK (Test-Daten)[/yellow]" if mock else ""),
-            title="🔍 Timeslotfinder"
-        ))
         
         # Authenticate (skip in mock mode)
         if mock:
-            console.print("\n[bold]Schritt 1/3:[/bold] Authentifizierung...")
+            console.print("[bold]Schritt 1/3:[/bold] Authentifizierung...")
             console.print("[yellow]⊘ Übersprungen (Mock-Modus)[/yellow]")
             access_token = "mock_token"
         else:
-            console.print("\n[bold]Schritt 1/3:[/bold] Authentifizierung...")
+            console.print("[bold]Schritt 1/3:[/bold] Authentifizierung...")
             authenticator = GraphAuthenticator(
                 client_id=config.client_id,
                 tenant_id=config.tenant_id,
                 authority_url=config.get_authority_url()
             )
-            access_token = authenticator.get_access_token(force_refresh=force_auth)
+            access_token = authenticator.get_access_token(force_refresh=False)
             console.print("[green]✓ Authentifizierung erfolgreich[/green]")
         
         # Fetch schedules (use mock client in mock mode)
         console.print("\n[bold]Schritt 2/3:[/bold] Kalender-Daten abrufen...")
         
         if mock:
-            client = MockGraphClient(access_token=access_token)
-            console.print("[yellow]⊘ Verwende Mock-Daten[/yellow]")
+            client = MockGraphClient(access_token=access_token, config=config)
+            console.print("[yellow]⊘ Verwende Mock-Daten aus Kalender-JSON[/yellow]")
         else:
             client = GraphClient(access_token=access_token)
         
@@ -197,26 +216,11 @@ def find(
                 "Versuchen Sie einen längeren Zeitraum oder eine kürzere Mindestdauer."
             )
         else:
-            console.print(f"[bold green]✓ {len(slots)} verfügbare Zeitslot(s) gefunden![/bold green]\n")
+            console.print(f"[bold green]✓ {len(slots)} verfügbare Zeitslot(s) gefunden:[/bold green]\n")
             
-            # Create table
-            table = Table(
-                title="Verfügbare Zeitslots",
-                show_header=True,
-                header_style="bold cyan"
-            )
-            table.add_column("#", style="dim", width=4)
-            table.add_column("Datum & Uhrzeit", style="bold")
-            table.add_column("Dauer", justify="right", style="cyan")
-            
-            for idx, slot in enumerate(slots, 1):
-                table.add_row(
-                    str(idx),
-                    slot.format_display().rsplit("(", 1)[0].strip(),
-                    f"{slot.time_range.duration_minutes()} Min."
-                )
-            
-            console.print(table)
+            # Simple list output
+            for slot in slots:
+                console.print(f"  {slot.format_display()}")
         
         console.print()
     
@@ -226,7 +230,8 @@ def find(
     
     except Exception as e:
         console.print(f"[bold red]Fehler:[/bold red] {e}")
-        if "--debug" in typer.Context.args:
+        import sys
+        if "--debug" in sys.argv:
             raise
         raise typer.Exit(1)
 
