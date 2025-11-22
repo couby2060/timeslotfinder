@@ -3,20 +3,22 @@ Main CLI application using Typer.
 """
 
 from pathlib import Path
-from typing import List, Optional, Annotated
+from typing import Annotated, List, Optional, Tuple
 
 import pendulum
 import typer
+from pendulum import DateTime
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
-from ..config import AppConfig, get_default_config_path
-from ..domain.models import WorkingHours
-from ..domain.slot_calculator import SlotCalculator
 from ..adapters.graph_authenticator import GraphAuthenticator
 from ..adapters.graph_client import GraphClient
 from ..adapters.mock_graph_client import MockGraphClient
+from ..config import AppConfig, get_default_config_path
+from ..domain.models import WorkingHours
+from ..domain.slot_calculator import SlotCalculator
+from ..services.timeslot_finder import TimeslotFinderService
 
 app = typer.Typer(
     name="timeslotfinder",
@@ -25,6 +27,16 @@ app = typer.Typer(
 )
 
 console = Console()
+
+
+def _build_working_hours(config: AppConfig) -> WorkingHours:
+    """Create a WorkingHours instance from configuration defaults."""
+    return WorkingHours(
+        start_time=config.defaults.get_start_time(),
+        end_time=config.defaults.get_end_time(),
+        exclude_weekdays=config.exclude_days,
+        timezone=config.timezone,
+    )
 
 
 def _run_interactive_wizard(config: AppConfig, console: Console, skip_dates: bool = False, start_date=None, end_date=None) -> dict:
@@ -41,6 +53,10 @@ def _run_interactive_wizard(config: AppConfig, console: Console, skip_dates: boo
     Returns:
         Dictionary with keys: participants, start, end, duration_minutes
     """
+    if not config.colleagues:
+        console.print("[bold red]Es sind keine Kollegen in der Konfiguration hinterlegt.[/bold red]")
+        raise typer.Exit(1)
+
     tz = config.timezone
     
     # 1. TEILNEHMER AUSWÄHLEN
@@ -68,6 +84,10 @@ def _run_interactive_wizard(config: AppConfig, console: Console, skip_dates: boo
         else:
             # It's a name
             participant_list.append(item)
+
+    if not participant_list:
+        console.print("[bold red]Es wurde kein gültiger Teilnehmer ausgewählt.[/bold red]")
+        raise typer.Exit(1)
     
     # 2. MEETING-DAUER
     console.print(f"\n[bold]2️⃣  Meeting-Dauer[/bold]")
@@ -134,7 +154,7 @@ def _determine_time_range(
     next_week: bool,
     start_option: Optional[str],
     end_option: Optional[str]
-):
+) -> Tuple[DateTime, DateTime, bool]:
     """
     Resolve the desired time window based on shortcut flags or explicit dates.
     Returns (start_date, end_date, time_preset_flag).
@@ -257,9 +277,7 @@ def find(
         
         # Resolve participant emails
         try:
-            participant_emails = [
-                config.resolve_participant(p) for p in participant_list
-            ]
+            participant_emails = config.resolve_participants(participant_list)
         except ValueError as e:
             console.print(f"[bold red]Error:[/bold red] {e}")
             raise typer.Exit(1)
@@ -287,19 +305,25 @@ def find(
             access_token = authenticator.get_access_token(force_refresh=False)
             console.print("[green]✓ Authentifizierung erfolgreich[/green]")
         
-        # Fetch schedules (use mock client in mock mode)
-        console.print("\n[bold]Schritt 2/3:[/bold] Kalender-Daten abrufen...")
-        
+        # Instantiate calendar client and service
         if mock:
             client = MockGraphClient(access_token=access_token, config=config)
-            console.print("[yellow]⊘ Verwende Mock-Daten aus Kalender-JSON[/yellow]")
         else:
             client = GraphClient(access_token=access_token)
-        
-        busy_times = client.get_schedule(
-            emails=participant_emails,
-            start_time=start_date,
-            end_time=end_date,
+
+        working_hours = _build_working_hours(config)
+        calculator = SlotCalculator(working_hours=working_hours)
+        service = TimeslotFinderService(calendar_client=client, slot_calculator=calculator)
+
+        # Fetch schedules (use mock client in mock mode)
+        console.print("\n[bold]Schritt 2/3:[/bold] Kalender-Daten abrufen...")
+        if mock:
+            console.print("[yellow]⊘ Verwende Mock-Daten aus Kalender-JSON[/yellow]")
+
+        busy_times = service.fetch_busy_times(
+            participants=participant_emails,
+            start_date=start_date,
+            end_date=end_date,
             timezone=tz
         )
         
@@ -311,16 +335,7 @@ def find(
         # Calculate available slots
         console.print("\n[bold]Schritt 3/3:[/bold] Verfügbare Slots berechnen...")
         
-        working_hours = WorkingHours(
-            start_time=config.defaults.get_start_time(),
-            end_time=config.defaults.get_end_time(),
-            exclude_weekdays=config.exclude_days,
-            timezone=tz
-        )
-        
-        calculator = SlotCalculator(working_hours=working_hours)
-        
-        slots = calculator.find_available_slots(
+        slots = service.calculate_slots(
             start_date=start_date,
             end_date=end_date,
             busy_times=busy_times,
