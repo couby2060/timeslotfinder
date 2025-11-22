@@ -1,0 +1,29 @@
+# config.yaml
+
+# Deine IDs aus dem Azure Portal
+client_id: "your-client-id-here"
+tenant_id: "your-tenant-id-here"
+
+# Standard-Einstellungen für die Suche
+defaults:
+  duration_minutes: 30
+  start_hour: 9
+  end_hour: 17
+
+# Zeitzone (wird für alle Zeitberechnungen verwendet)
+timezone: "Europe/Berlin"
+
+# Tage ausschließen (0 = Montag, 6 = Sonntag)
+exclude_days: [5, 6]  # Samstag, Sonntag
+
+# Deine Kollegen (Name für CLI -> E-Mail für API)
+colleagues:
+  - name: "max"
+    email: "max.mustermann@company.com"
+  
+  - name: "anna"
+    email: "anna.schmidt@company.com"
+  
+  - name: "tom"
+    email: "tom.mueller@company.com"
+
