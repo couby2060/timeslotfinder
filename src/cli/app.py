@@ -28,10 +28,101 @@ app = typer.Typer(
 console = Console()
 
 
+def _run_interactive_wizard(config: AppConfig, console: Console) -> dict:
+    """
+    Run the interactive wizard to gather meeting parameters from the user.
+    
+    Args:
+        config: Application configuration
+        console: Rich console for output
+        
+    Returns:
+        Dictionary with keys: participants, start, end, duration_minutes
+    """
+    tz = config.timezone
+    
+    # 1. TEILNEHMER AUSWÄHLEN
+    console.print("[bold]1️⃣  Teilnehmer auswählen[/bold]")
+    console.print("\nVerfügbare Kollegen:")
+    for idx, colleague in enumerate(config.colleagues, 1):
+        console.print(f"  {idx}. {colleague.name} ({colleague.email})")
+    
+    participant_input = typer.prompt(
+        "\n→ Teilnehmer (Namen oder Nummern durch Leerzeichen getrennt)",
+        default="1"
+    )
+    
+    # Parse input - can be names or numbers
+    participant_list = []
+    for item in participant_input.split():
+        item = item.strip()
+        # Check if it's a number
+        if item.isdigit():
+            idx = int(item) - 1  # Convert to 0-based index
+            if 0 <= idx < len(config.colleagues):
+                participant_list.append(config.colleagues[idx].name)
+            else:
+                console.print(f"[yellow]Warnung: Nummer {item} ungültig, überspringe[/yellow]")
+        else:
+            # It's a name
+            participant_list.append(item)
+    
+    # 2. MEETING-DAUER
+    console.print(f"\n[bold]2️⃣  Meeting-Dauer[/bold]")
+    min_duration = typer.prompt(
+        "→ Mindestdauer in Minuten",
+        default=config.defaults.duration_minutes,
+        type=int
+    )
+    
+    # 3. ZEITRAUM
+    console.print(f"\n[bold]3️⃣  Zeitraum festlegen[/bold]")
+    
+    default_start = pendulum.now(tz).format("YYYY-MM-DD")
+    start_date_str = typer.prompt(
+        "→ Startdatum (YYYY-MM-DD)",
+        default=default_start
+    ).strip()
+    
+    # Parse start date to calculate default end
+    try:
+        start_temp = pendulum.parse(start_date_str, tz=tz)
+        default_end = start_temp.add(days=7).format("YYYY-MM-DD")
+    except Exception:
+        default_end = pendulum.now(tz).add(days=7).format("YYYY-MM-DD")
+    
+    end_date_str = typer.prompt(
+        "→ Enddatum (YYYY-MM-DD)",
+        default=default_end
+    ).strip()
+    
+    console.print("\n" + "="*60 + "\n")
+    
+    # Parse dates with error handling
+    try:
+        start = pendulum.from_format(start_date_str, "YYYY-MM-DD", tz=tz).start_of("day")
+    except Exception as e:
+        console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
+        raise typer.Exit(1)
+    
+    try:
+        end = pendulum.from_format(end_date_str, "YYYY-MM-DD", tz=tz).end_of("day")
+    except Exception as e:
+        console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
+        raise typer.Exit(1)
+    
+    return {
+        "participants": participant_list,
+        "start": start,
+        "end": end,
+        "duration_minutes": min_duration
+    }
+
+
 @app.command()
 def find(
     config_file: Annotated[Optional[Path], typer.Option("--config", "-c", help="Path to config file. Defaults to ./config.yaml")] = None,
-    mock: Annotated[Optional[bool], typer.Option("--mock", help="Use mock data instead of real Microsoft Graph API (for testing)")] = None
+    mock: Annotated[bool, typer.Option("--mock", help="Use mock data instead of real Microsoft Graph API (for testing)")] = False
 ):
     """
     Find available meeting slots - Interactive mode.
@@ -44,10 +135,6 @@ def find(
         # Use mock data (for testing without Azure)
         timeslotfinder find --mock
     """
-    # Handle mock flag manually via sys.argv (workaround for Typer issue)
-    import sys
-    if mock is None:
-        mock = "--mock" in sys.argv
     
     try:
         # Load configuration
@@ -66,75 +153,13 @@ def find(
         if mock:
             console.print("[yellow]⚠  MOCK-MODUS: Verwende Test-Daten[/yellow]\n")
         
-        # 1. TEILNEHMER AUSWÄHLEN
-        console.print("[bold]1️⃣  Teilnehmer auswählen[/bold]")
-        console.print("\nVerfügbare Kollegen:")
-        for idx, colleague in enumerate(config.colleagues, 1):
-            console.print(f"  {idx}. {colleague.name} ({colleague.email})")
+        # Run interactive wizard to gather parameters
+        wizard_result = _run_interactive_wizard(config, console)
         
-        participant_input = typer.prompt(
-            "\n→ Teilnehmer (Namen oder Nummern durch Leerzeichen getrennt)",
-            default="1"
-        )
-        
-        # Parse input - can be names or numbers
-        participant_list = []
-        for item in participant_input.split():
-            item = item.strip()
-            # Check if it's a number
-            if item.isdigit():
-                idx = int(item) - 1  # Convert to 0-based index
-                if 0 <= idx < len(config.colleagues):
-                    participant_list.append(config.colleagues[idx].name)
-                else:
-                    console.print(f"[yellow]Warnung: Nummer {item} ungültig, überspringe[/yellow]")
-            else:
-                # It's a name
-                participant_list.append(item)
-        
-        # 2. MEETING-DAUER
-        console.print(f"\n[bold]2️⃣  Meeting-Dauer[/bold]")
-        min_duration = typer.prompt(
-            "→ Mindestdauer in Minuten",
-            default=config.defaults.duration_minutes,
-            type=int
-        )
-        
-        # 3. ZEITRAUM
-        console.print(f"\n[bold]3️⃣  Zeitraum festlegen[/bold]")
-        
-        default_start = pendulum.now(tz).format("YYYY-MM-DD")
-        start_date_str = typer.prompt(
-            "→ Startdatum (YYYY-MM-DD)",
-            default=default_start
-        ).strip()
-        
-        # Parse start date to calculate default end
-        try:
-            start_temp = pendulum.parse(start_date_str, tz=tz)
-            default_end = start_temp.add(days=7).format("YYYY-MM-DD")
-        except Exception:
-            default_end = pendulum.now(tz).add(days=7).format("YYYY-MM-DD")
-        
-        end_date_str = typer.prompt(
-            "→ Enddatum (YYYY-MM-DD)",
-            default=default_end
-        ).strip()
-        
-        console.print("\n" + "="*60 + "\n")
-        
-        # Parse dates with better error handling
-        try:
-            start = pendulum.from_format(start_date_str, "YYYY-MM-DD", tz=tz).start_of("day")
-        except Exception as e:
-            console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
-            raise typer.Exit(1)
-        
-        try:
-            end = pendulum.from_format(end_date_str, "YYYY-MM-DD", tz=tz).end_of("day")
-        except Exception as e:
-            console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
-            raise typer.Exit(1)
+        participant_list = wizard_result["participants"]
+        start = wizard_result["start"]
+        end = wizard_result["end"]
+        min_duration = wizard_result["duration_minutes"]
         
         # Resolve participant emails
         try:

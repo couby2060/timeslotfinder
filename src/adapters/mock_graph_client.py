@@ -62,17 +62,26 @@ class MockGraphClient:
         timezone: str = "Europe/Berlin"
     ) -> Dict[str, List[TimeRange]]:
         """
-        Load busy times from mock calendar data (JSON file).
+        Load busy times from mock calendar data (JSON file) with dynamic date shifting.
+        
+        This method applies "Date Shifting" to make mock data work for any time period:
+        1. Find the earliest event in the JSON (Source-Anchor)
+        2. Use the requested start_time as Target-Anchor
+        3. Calculate the delta (difference) between Target and Source
+        4. Shift all events by this delta before filtering
         
         Args:
             emails: List of user email addresses
-            start_time: Start of the time window
+            start_time: Start of the time window (also used as Target-Anchor for shifting)
             end_time: End of the time window
             timezone: IANA timezone identifier
             
         Returns:
             Dictionary mapping email -> list of busy TimeRange objects
         """
+        # Calculate date shift delta
+        date_shift_delta = self._calculate_date_shift(start_time, timezone)
+        
         busy_times: Dict[str, List[TimeRange]] = {}
         
         for email in emails:
@@ -89,9 +98,19 @@ class MockGraphClient:
                     event_start = pendulum.parse(event["start"], tz=timezone)
                     event_end = pendulum.parse(event["end"], tz=timezone)
                     
-                    # Check if event overlaps with requested time window
-                    if event_start < end_time and event_end > start_time:
-                        user_busy_times.append(TimeRange(start=event_start, end=event_end))
+                    # Apply date shift
+                    shifted_start = event_start.add(
+                        days=date_shift_delta.days,
+                        seconds=date_shift_delta.seconds
+                    )
+                    shifted_end = event_end.add(
+                        days=date_shift_delta.days,
+                        seconds=date_shift_delta.seconds
+                    )
+                    
+                    # Check if shifted event overlaps with requested time window
+                    if shifted_start < end_time and shifted_end > start_time:
+                        user_busy_times.append(TimeRange(start=shifted_start, end=shifted_end))
                 
                 except (KeyError, ValueError) as e:
                     # Skip invalid events
@@ -100,6 +119,46 @@ class MockGraphClient:
             busy_times[email] = user_busy_times
         
         return busy_times
+    
+    def _calculate_date_shift(self, target_start: DateTime, timezone: str):
+        """
+        Calculate the date shift delta to align mock data with the requested time period.
+        
+        This finds the earliest event in the JSON (Source-Anchor) and calculates
+        the difference to the target start time.
+        
+        Args:
+            target_start: The requested start time (Target-Anchor)
+            timezone: IANA timezone identifier
+            
+        Returns:
+            timedelta object representing the shift amount
+        """
+        if not self.calendar_events:
+            # No events to shift
+            return pendulum.duration()
+        
+        # Find the earliest event start time (Source-Anchor)
+        earliest_event_start = None
+        
+        for event in self.calendar_events:
+            try:
+                event_start = pendulum.parse(event["start"], tz=timezone)
+                if earliest_event_start is None or event_start < earliest_event_start:
+                    earliest_event_start = event_start
+            except (KeyError, ValueError):
+                # Skip invalid events
+                continue
+        
+        if earliest_event_start is None:
+            # No valid events found
+            return pendulum.duration()
+        
+        # Calculate delta: Target - Source
+        # We want to shift events so they align with the target week
+        delta = target_start - earliest_event_start
+        
+        return delta
     
     def test_connection(self) -> Dict[str, any]:
         """
