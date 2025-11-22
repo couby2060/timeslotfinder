@@ -17,6 +17,7 @@ from ..domain.models import WorkingHours
 from ..domain.slot_calculator import SlotCalculator
 from ..adapters.graph_authenticator import GraphAuthenticator
 from ..adapters.graph_client import GraphClient
+from ..adapters.mock_graph_client import MockGraphClient, MockGraphAuthenticator
 
 app = typer.Typer(
     name="timeslotfinder",
@@ -57,6 +58,11 @@ def find(
         False,
         "--force-auth",
         help="Force re-authentication (ignore cached token)"
+    ),
+    mock: bool = typer.Option(
+        False,
+        "--mock",
+        help="Use mock data instead of real Microsoft Graph API (for testing)"
     )
 ):
     """
@@ -113,29 +119,44 @@ def find(
         
         # Display search parameters
         console.print()
+        
+        # Show mock mode warning if enabled
+        if mock:
+            console.print("[yellow]⚠ Running in MOCK mode using simulated data[/yellow]\n")
+        
         console.print(Panel.fit(
             f"[bold cyan]Suche verfügbare Zeitslots[/bold cyan]\n\n"
             f"[bold]Teilnehmer:[/bold] {', '.join(participant_emails)}\n"
             f"[bold]Zeitraum:[/bold] {start.format('DD.MM.YYYY')} - {end.format('DD.MM.YYYY')}\n"
             f"[bold]Mindestdauer:[/bold] {min_duration} Minuten\n"
-            f"[bold]Arbeitszeiten:[/bold] {config.defaults.start_hour}:00 - {config.defaults.end_hour}:00",
+            f"[bold]Arbeitszeiten:[/bold] {config.defaults.start_hour}:00 - {config.defaults.end_hour}:00"
+            + (f"\n[bold]Modus:[/bold] [yellow]MOCK (Test-Daten)[/yellow]" if mock else ""),
             title="🔍 Timeslotfinder"
         ))
         
-        # Authenticate
-        console.print("\n[bold]Schritt 1/3:[/bold] Authentifizierung...")
-        authenticator = GraphAuthenticator(
-            client_id=config.client_id,
-            tenant_id=config.tenant_id,
-            authority_url=config.get_authority_url()
-        )
+        # Authenticate (skip in mock mode)
+        if mock:
+            console.print("\n[bold]Schritt 1/3:[/bold] Authentifizierung...")
+            console.print("[yellow]⊘ Übersprungen (Mock-Modus)[/yellow]")
+            access_token = "mock_token"
+        else:
+            console.print("\n[bold]Schritt 1/3:[/bold] Authentifizierung...")
+            authenticator = GraphAuthenticator(
+                client_id=config.client_id,
+                tenant_id=config.tenant_id,
+                authority_url=config.get_authority_url()
+            )
+            access_token = authenticator.get_access_token(force_refresh=force_auth)
+            console.print("[green]✓ Authentifizierung erfolgreich[/green]")
         
-        access_token = authenticator.get_access_token(force_refresh=force_auth)
-        console.print("[green]✓ Authentifizierung erfolgreich[/green]")
-        
-        # Fetch schedules
+        # Fetch schedules (use mock client in mock mode)
         console.print("\n[bold]Schritt 2/3:[/bold] Kalender-Daten abrufen...")
-        client = GraphClient(access_token=access_token)
+        
+        if mock:
+            client = MockGraphClient(access_token=access_token)
+            console.print("[yellow]⊘ Verwende Mock-Daten[/yellow]")
+        else:
+            client = GraphClient(access_token=access_token)
         
         busy_times = client.get_schedule(
             emails=participant_emails,
@@ -144,7 +165,10 @@ def find(
             timezone=tz
         )
         
-        console.print("[green]✓ Daten erfolgreich abgerufen[/green]")
+        if mock:
+            console.print("[green]✓ Mock-Daten generiert[/green]")
+        else:
+            console.print("[green]✓ Daten erfolgreich abgerufen[/green]")
         
         # Calculate available slots
         console.print("\n[bold]Schritt 3/3:[/bold] Verfügbare Slots berechnen...")

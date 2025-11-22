@@ -43,21 +43,29 @@ src/
 
 ## 🚀 Installation
 
-### 1. Repository klonen
+### Quick Install (mit Script)
+
+```bash
+./INSTALL.sh
+```
+
+### Manuelle Installation
+
+#### 1. Repository klonen
 
 ```bash
 git clone <repository-url>
 cd 2025-ms-timeslotfinder
 ```
 
-### 2. Virtual Environment erstellen
+#### 2. Virtual Environment erstellen
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate  # Auf Windows: venv\Scripts\activate
 ```
 
-### 3. Dependencies installieren
+#### 3. Dependencies installieren
 
 ```bash
 pip install -r requirements.txt
@@ -98,6 +106,22 @@ colleagues:
 
 ## 📖 Verwendung
 
+### 🎭 Mock-Modus (OHNE Azure-Setup)
+
+Perfekt zum Testen während du auf Azure-Freischaltung wartest:
+
+```bash
+# Mit Mock-Daten testen
+python timeslotfinder.py find johannes julia --mock
+```
+
+Das `--mock` Flag:
+- ✅ Überspringt Authentifizierung
+- ✅ Verwendet simulierte Kalender-Daten
+- ✅ Testet die komplette Logik & UI
+
+Siehe auch: `TEST_MOCK_MODE.md` für Details
+
 ### Authentifizierung testen
 
 ```bash
@@ -121,6 +145,9 @@ python timeslotfinder.py find max anna
 # Mit E-Mail-Adressen
 python timeslotfinder.py find max.mustermann@company.com anna.schmidt@company.com
 
+# Mit Mock-Daten (ohne Azure Auth)
+python timeslotfinder.py find max anna --mock
+
 # Mit Datumsbereich
 python timeslotfinder.py find max anna --start 2024-11-25 --end 2024-11-29
 
@@ -132,7 +159,8 @@ python timeslotfinder.py find max anna \
   --start 2024-11-25 \
   --end 2024-11-29 \
   --duration 30 \
-  --config config.yaml
+  --config config.yaml \
+  --mock
 ```
 
 ### Token-Cache löschen
