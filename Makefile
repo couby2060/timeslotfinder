@@ -18,14 +18,14 @@ dev-install:
 	pip install -e ".[dev]"
 
 format:
-	black src/
-	ruff check src/ --fix
+	black timeslotfinder/
+	ruff check timeslotfinder/ --fix
 
 lint:
-	ruff check src/
+	ruff check timeslotfinder/
 
 type-check:
-	mypy src/
+	mypy timeslotfinder/
 
 test:
 	pytest tests/ -v

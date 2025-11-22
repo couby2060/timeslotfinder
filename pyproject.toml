@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [project.scripts]
-timeslotfinder = "src.cli.app:app"
+timeslotfinder = "timeslotfinder.cli.app:app"
 
 [project.optional-dependencies]
 dev = [
@@ -48,7 +48,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["timeslotfinder*"]
 
 [tool.black]
 line-length = 100

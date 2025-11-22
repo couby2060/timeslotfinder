@@ -5,8 +5,8 @@ Tests for slot calculator.
 import pendulum
 from datetime import time
 
-from src.domain.models import TimeRange, WorkingHours
-from src.domain.slot_calculator import SlotCalculator
+from timeslotfinder.domain.models import TimeRange, WorkingHours
+from timeslotfinder.domain.slot_calculator import SlotCalculator
 
 
 class TestSlotCalculator:

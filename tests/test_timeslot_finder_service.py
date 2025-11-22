@@ -8,9 +8,9 @@ from typing import Dict, List
 
 import pendulum
 
-from src.domain.models import TimeRange, WorkingHours
-from src.domain.slot_calculator import SlotCalculator
-from src.services.timeslot_finder import TimeslotFinderService
+from timeslotfinder.domain.models import TimeRange, WorkingHours
+from timeslotfinder.domain.slot_calculator import SlotCalculator
+from timeslotfinder.services.timeslot_finder import TimeslotFinderService
 
 
 class StubCalendarClient:

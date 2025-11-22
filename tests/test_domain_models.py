@@ -6,7 +6,7 @@ import pendulum
 import pytest
 from datetime import time
 
-from src.domain.models import TimeRange, WorkingHours
+from timeslotfinder.domain.models import TimeRange, WorkingHours
 
 
 class TestTimeRange:
