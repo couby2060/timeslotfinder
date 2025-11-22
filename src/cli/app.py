@@ -28,13 +28,16 @@ app = typer.Typer(
 console = Console()
 
 
-def _run_interactive_wizard(config: AppConfig, console: Console) -> dict:
+def _run_interactive_wizard(config: AppConfig, console: Console, skip_dates: bool = False, start_date=None, end_date=None) -> dict:
     """
     Run the interactive wizard to gather meeting parameters from the user.
     
     Args:
         config: Application configuration
         console: Rich console for output
+        skip_dates: If True, skip date prompts (used when --this-week or --next-week is set)
+        start_date: Pre-set start date (when skip_dates=True)
+        end_date: Pre-set end date (when skip_dates=True)
         
     Returns:
         Dictionary with keys: participants, start, end, duration_minutes
@@ -75,41 +78,46 @@ def _run_interactive_wizard(config: AppConfig, console: Console) -> dict:
         type=int
     )
     
-    # 3. ZEITRAUM
-    console.print(f"\n[bold]3️⃣  Zeitraum festlegen[/bold]")
-    
-    default_start = pendulum.now(tz).format("YYYY-MM-DD")
-    start_date_str = typer.prompt(
-        "→ Startdatum (YYYY-MM-DD)",
-        default=default_start
-    ).strip()
-    
-    # Parse start date to calculate default end
-    try:
-        start_temp = pendulum.parse(start_date_str, tz=tz)
-        default_end = start_temp.add(days=7).format("YYYY-MM-DD")
-    except Exception:
-        default_end = pendulum.now(tz).add(days=7).format("YYYY-MM-DD")
-    
-    end_date_str = typer.prompt(
-        "→ Enddatum (YYYY-MM-DD)",
-        default=default_end
-    ).strip()
+    # 3. ZEITRAUM (skip if dates are pre-set)
+    if skip_dates and start_date and end_date:
+        start = start_date
+        end = end_date
+        console.print(f"\n[bold]3️⃣  Zeitraum[/bold]: {start.format('DD.MM.YYYY')} - {end.format('DD.MM.YYYY')} (vorgegeben)")
+    else:
+        console.print(f"\n[bold]3️⃣  Zeitraum festlegen[/bold]")
+        
+        default_start = pendulum.now(tz).format("YYYY-MM-DD")
+        start_date_str = typer.prompt(
+            "→ Startdatum (YYYY-MM-DD)",
+            default=default_start
+        ).strip()
+        
+        # Parse start date to calculate default end
+        try:
+            start_temp = pendulum.parse(start_date_str, tz=tz)
+            default_end = start_temp.add(days=7).format("YYYY-MM-DD")
+        except Exception:
+            default_end = pendulum.now(tz).add(days=7).format("YYYY-MM-DD")
+        
+        end_date_str = typer.prompt(
+            "→ Enddatum (YYYY-MM-DD)",
+            default=default_end
+        ).strip()
+        
+        # Parse dates with error handling
+        try:
+            start = pendulum.from_format(start_date_str, "YYYY-MM-DD", tz=tz).start_of("day")
+        except Exception as e:
+            console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
+            raise typer.Exit(1)
+        
+        try:
+            end = pendulum.from_format(end_date_str, "YYYY-MM-DD", tz=tz).end_of("day")
+        except Exception as e:
+            console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
+            raise typer.Exit(1)
     
     console.print("\n" + "="*60 + "\n")
-    
-    # Parse dates with error handling
-    try:
-        start = pendulum.from_format(start_date_str, "YYYY-MM-DD", tz=tz).start_of("day")
-    except Exception as e:
-        console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
-        raise typer.Exit(1)
-    
-    try:
-        end = pendulum.from_format(end_date_str, "YYYY-MM-DD", tz=tz).end_of("day")
-    except Exception as e:
-        console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
-        raise typer.Exit(1)
     
     return {
         "participants": participant_list,
@@ -121,19 +129,37 @@ def _run_interactive_wizard(config: AppConfig, console: Console) -> dict:
 
 @app.command()
 def find(
+    participants: Annotated[List[str], typer.Argument(help="Participant names (e.g., 'ich max'). If omitted, interactive mode starts.")] = [],
     config_file: Annotated[Optional[Path], typer.Option("--config", "-c", help="Path to config file. Defaults to ./config.yaml")] = None,
+    start: Annotated[Optional[str], typer.Option("--start", help="Start date (YYYY-MM-DD)")] = None,
+    end: Annotated[Optional[str], typer.Option("--end", help="End date (YYYY-MM-DD)")] = None,
+    duration: Annotated[Optional[int], typer.Option("--duration", "-d", help="Meeting duration in minutes")] = None,
+    this_week: Annotated[bool, typer.Option("--this-week", help="Search from now until end of current week")] = False,
+    next_week: Annotated[bool, typer.Option("--next-week", help="Search next week (Monday to Sunday)")] = False,
     mock: Annotated[bool, typer.Option("--mock", help="Use mock data instead of real Microsoft Graph API (for testing)")] = False
 ):
     """
-    Find available meeting slots - Interactive mode.
+    Find available meeting slots - Supports Interactive and Batch mode.
     
     Examples:
     
-        # Start the interactive slot finder
+        # Interactive mode
         timeslotfinder find
+        
+        # Batch mode with participants
+        timeslotfinder find ich max
+        timeslotfinder find alice bob --duration 60
+        
+        # Quick time shortcuts
+        timeslotfinder find ich max --this-week
+        timeslotfinder find --next-week
+        
+        # Custom date range
+        timeslotfinder find ich max --start 2024-01-15 --end 2024-01-19
         
         # Use mock data (for testing without Azure)
         timeslotfinder find --mock
+        timeslotfinder find ich max --mock --next-week
     """
     
     try:
@@ -153,13 +179,67 @@ def find(
         if mock:
             console.print("[yellow]⚠  MOCK-MODUS: Verwende Test-Daten[/yellow]\n")
         
-        # Run interactive wizard to gather parameters
-        wizard_result = _run_interactive_wizard(config, console)
+        # DETERMINE TIME RANGE: Shortcuts take precedence over explicit dates
+        if this_week and next_week:
+            console.print("[red]Fehler: --this-week und --next-week können nicht gleichzeitig verwendet werden.[/red]")
+            raise typer.Exit(1)
         
-        participant_list = wizard_result["participants"]
-        start = wizard_result["start"]
-        end = wizard_result["end"]
-        min_duration = wizard_result["duration_minutes"]
+        if this_week:
+            # Start: now, End: end of current week (Sunday)
+            start_date = pendulum.now(tz)
+            end_date = pendulum.now(tz).end_of("week")
+            time_preset = True
+        elif next_week:
+            # Start: next Monday 00:00, End: next Sunday 23:59
+            start_date = pendulum.now(tz).next(pendulum.MONDAY).start_of("day")
+            end_date = start_date.end_of("week")
+            time_preset = True
+        else:
+            start_date = None
+            end_date = None
+            time_preset = False
+        
+        # HYBRID MODE: Batch vs Interactive
+        if participants:
+            # BATCH MODE: participants provided as arguments
+            participant_list = list(participants)
+            
+            # Use preset dates if available, otherwise parse from options or use defaults
+            if not time_preset:
+                if start:
+                    try:
+                        start_date = pendulum.from_format(start, "YYYY-MM-DD", tz=tz).start_of("day")
+                    except Exception as e:
+                        console.print(f"[red]Fehler beim Parsen des Startdatums: {e}[/red]")
+                        raise typer.Exit(1)
+                else:
+                    start_date = pendulum.now(tz).start_of("day")
+                
+                if end:
+                    try:
+                        end_date = pendulum.from_format(end, "YYYY-MM-DD", tz=tz).end_of("day")
+                    except Exception as e:
+                        console.print(f"[red]Fehler beim Parsen des Enddatums: {e}[/red]")
+                        raise typer.Exit(1)
+                else:
+                    end_date = start_date.add(days=7).end_of("day")
+            
+            min_duration = duration if duration is not None else config.defaults.duration_minutes
+            
+        else:
+            # INTERACTIVE MODE: run wizard
+            wizard_result = _run_interactive_wizard(
+                config, 
+                console, 
+                skip_dates=time_preset, 
+                start_date=start_date, 
+                end_date=end_date
+            )
+            
+            participant_list = wizard_result["participants"]
+            start_date = wizard_result["start"]
+            end_date = wizard_result["end"]
+            min_duration = wizard_result["duration_minutes"]
         
         # Resolve participant emails
         try:
@@ -173,7 +253,7 @@ def find(
         # Display search summary
         console.print("[bold cyan]📊 Zusammenfassung:[/bold cyan]")
         console.print(f"   Teilnehmer: {', '.join(participant_emails)}")
-        console.print(f"   Zeitraum: {start.format('DD.MM.YYYY')} - {end.format('DD.MM.YYYY')}")
+        console.print(f"   Zeitraum: {start_date.format('DD.MM.YYYY HH:mm')} - {end_date.format('DD.MM.YYYY HH:mm')}")
         console.print(f"   Mindestdauer: {min_duration} Minuten")
         console.print(f"   Arbeitszeiten: {config.defaults.start_hour}:00 - {config.defaults.end_hour}:00")
         console.print()
@@ -204,8 +284,8 @@ def find(
         
         busy_times = client.get_schedule(
             emails=participant_emails,
-            start_time=start,
-            end_time=end,
+            start_time=start_date,
+            end_time=end_date,
             timezone=tz
         )
         
@@ -227,8 +307,8 @@ def find(
         calculator = SlotCalculator(working_hours=working_hours)
         
         slots = calculator.find_available_slots(
-            start_date=start,
-            end_date=end,
+            start_date=start_date,
+            end_date=end_date,
             busy_times=busy_times,
             min_duration_minutes=min_duration
         )
@@ -255,9 +335,6 @@ def find(
     
     except Exception as e:
         console.print(f"[bold red]Fehler:[/bold red] {e}")
-        import sys
-        if "--debug" in sys.argv:
-            raise
         raise typer.Exit(1)
 
 
